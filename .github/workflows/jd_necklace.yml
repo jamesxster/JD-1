@@ -35,7 +35,7 @@ jobs:
       - name: npm install
         run: |
           npm install
-      - name: '运行 【点点劵】'
+      - name: '运行 【点劵】'
        run: |
           node jd_necklace.js
         env:
