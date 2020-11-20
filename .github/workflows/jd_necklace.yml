@@ -35,8 +35,8 @@ jobs:
       - name: npm install
         run: |
           npm install
-      - name: '运行 【点劵】'
-       run: |
+      - name: '运行 【点卷】'
+        run: |
           node jd_necklace.js
         env:
           JD_COOKIE: ${{ secrets.JD_COOKIE }}
