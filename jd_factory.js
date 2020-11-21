@@ -10,9 +10,9 @@ const $ = new Env('东东工厂');
 //Node.js用户请在jdCookie.js处填写京东ck;
 const jdCookieNode = $.isNode() ? require('./jdCookie.js') : '';
 const notify = $.isNode() ? require('./sendNotify') : '';
+let jdNotify = false;//是否关闭通知，false打开通知推送，true关闭通知推送
 let cookiesArr = [],
     cookie = '';
-let jdNotify = false;//是否关闭通知，false打开通知推送，true关闭通知推送
 if ($.isNode()) {
     Object.keys(jdCookieNode).forEach((item) => {
         cookiesArr.push(jdCookieNode[item])
