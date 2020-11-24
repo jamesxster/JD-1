@@ -1,7 +1,6 @@
 // 东东工厂
 // Author: 799953468 https://github.com/799953468
 // 更新时间：2020-11-18 8:57
-
 // [task_local]
 // # 东东工厂
 // 0 */3 * * * ./JD/jd_factory.js, tag=东东工厂, img-url=https://raw.githubusercontent.com/Orz-3/task/master/jd.png, enabled=true
@@ -9,21 +8,42 @@
 const $ = new Env('东东工厂');
 //Node.js用户请在jdCookie.js处填写京东ck;
 const jdCookieNode = $.isNode() ? require('./jdCookie.js') : '';
-const notify = $.isNode() ? require('./sendNotify') : '';
-let jdNotify = false;//是否关闭通知，false打开通知推送，true关闭通知推送
 let cookiesArr = [],
-    cookie = '';
+    cookie = '',
+    sharecodes = [
+        'P04z54XCjVWnYaS5m9cZ2esjHVDlwcfuXNvEN4', //账号 1
+        'P04z54XCjVWnYaS5m9cZ2esjHVDlwcfuXNvEN4', //账号 2
+    ];
 if ($.isNode()) {
     Object.keys(jdCookieNode).forEach((item) => {
         cookiesArr.push(jdCookieNode[item])
-    })
+    });
+
+    // github actions 用户的好友互助码 Secret 变量: FACTORY_SHARECODES (格式参考农村、萌宠)
+    const $ENV_SHARECODES = process.env.FACTORY_SHARECODES;
+    if ($ENV_SHARECODES) {
+        $ENV_SHARECODES.trim()
+            .split(/([\n\r]|\\n|\\r)+|&/) //用 & 代替换行分隔多账号，可留空。
+            .map(str => (str || '').trim())
+            .forEach((str, i) => {
+                if (!sharecodes[i])
+                    sharecodes[i] = '';
+                sharecodes[i] = str + '@' + sharecodes[i];
+            });
+    }
 } else {
     cookiesArr.push($.getdata('CookieJD'));
     cookiesArr.push($.getdata('CookieJD2'));
 }
+
+sharecodes = sharecodes.map(str => {
+    return [...new Set(str.trim().split('@').filter(Boolean))];
+});
+
 let message = '',
     subTitle = '',
-    UserName = '';
+    UserName = '',
+    autoAdd = false; // 是否自动注入电量
 const JD_API_HOST = 'https://api.m.jd.com/client.action';
 !(async() => {
     if (!cookiesArr[0]) {
@@ -39,12 +59,14 @@ const JD_API_HOST = 'https://api.m.jd.com/client.action';
             $.index = i + 1;
             await jdFactory();
             await jdfactory_getTaskDetail();
+            console.log('互助码: ' + $.homeData.data.result.taskVos[1].assistTaskDetailVo.taskToken);
             await doDailyTask();
             await meetList();
             await shopList();
             await followList();
             await collectElectricity();
             await DailyElectricity();
+            await share();
             await addEnergy();
             await showMsg();
         }
@@ -61,7 +83,7 @@ const JD_API_HOST = 'https://api.m.jd.com/client.action';
 function showMsg() {
     if ($.isLogin) {
         $.log(`\n${message}\n`);
-        jdNotify = $.getdata('jdSpeedNotify') ? $.getdata('jdSpeedNotify') : jdNotify;
+        jdNotify = $.getdata('jdfactory') ? $.getdata('jdfactory') : jdNotify;
         if (!jdNotify || jdNotify === 'false') {
             $.msg($.name, subTitle, `【京东账号${$.index}】${UserName}\n` + message);
         }
@@ -157,8 +179,12 @@ async function meetList() {
         console.log('任务已经做过了');
     } else {
         for (i = 0; i < $.homeData.data.result.taskVos[3].maxTimes; i++) {
-            await meetForFactory(i);
             await jdfactory_getTaskDetail();
+            if ($.homeData.data.result.taskVos[3].times === $.homeData.data.result.taskVos[3].maxTimes) {
+                console.log('任务已经做完');
+                break;
+            }
+            await meetForFactory(i);
             console.log($.homeData.data.result.taskVos[3].shoppingActivityVos[i].title + '  ' + $.homeData.data.result.taskVos[3].times + '/' + $.homeData.data.result.taskVos[3].maxTimes);
             if ($.meetResult.data.bizMsg === "0") {
                 console.log(`任务执行成功获得${$.meetResult.result.score}⚡电量`)
@@ -167,8 +193,6 @@ async function meetList() {
             }
             await sleep(2000);
         }
-        console.log('-----休息一下-----');
-        await sleep(5000);
     }
 }
 
@@ -190,8 +214,6 @@ async function shopList() {
         }
         await sleep(8000);
     }
-    console.log('-----休息一下-----');
-    await sleep(5000);
 }
 
 // 关注店铺
@@ -201,8 +223,12 @@ async function followList() {
         console.log('任务已经做过了');
     } else {
         for (i = 0; i < $.homeData.data.result.taskVos[5].maxTimes; i++) {
-            await followShop(i);
             await jdfactory_getTaskDetail();
+            if ($.homeData.data.result.taskVos[5].times === $.homeData.data.result.taskVos[5].maxTimes) {
+                console.log('任务已经做完');
+                break;
+            }
+            await followShop(i);
             console.log('任务次数: ' + $.homeData.data.result.taskVos[5].times + '/' + $.homeData.data.result.taskVos[5].maxTimes);
             if ($.finishfollow.data.bizMsg === "0") {
                 console.log(`任务执行成功获得${$.finishfollow.data.result.score}⚡电量`);
@@ -211,8 +237,23 @@ async function followList() {
             }
             await sleep(2000);
         }
-        console.log('-----休息一下-----');
-        await sleep(5000);
+    }
+}
+
+// 互助
+async function share() {
+    const sharecode = sharecodes[$.index - 1];
+    for (i = 0; i < sharecode.length; i++) {
+        const taskToken = sharecode[i];
+        if (taskToken === $.homeData.data.result.taskVos[1].assistTaskDetailVo.taskToken) {
+            console.log('跳过自己的助力码');
+            continue;
+        }
+        console.log('开始助力第' + (i + 1) + '个好友');
+        const functionId = 'jdfactory_collectScore';
+        const body = `'taskToken':'${taskToken}'`;
+        $.shareInfo = await request(functionId, body);
+        console.log($.shareInfo.data.bizMsg);
     }
 }
 
@@ -221,8 +262,7 @@ async function signForFactory() {
     const functionId = 'jdfactory_collectScore';
     const taskToken = $.homeData.data.result.taskVos[0].simpleRecordInfoVo.taskToken;
     const body = `'taskToken':'${taskToken}'`;
-    const host = `api.m.jd.com`;
-    $.signResult = await request(functionId, body, host, 'application/x-www-form-urlencoded');
+    $.signResult = await request(functionId, body);
 }
 
 // 逛一逛API
@@ -230,8 +270,7 @@ async function meetForFactory(i) {
     const functionId = 'jdfactory_collectScore';
     const taskToken = $.homeData.data.result.taskVos[3].shoppingActivityVos[i].taskToken;
     const body = `'taskToken':'${taskToken}'`;
-    const host = `api.m.jd.com`;
-    $.meetResult = await request(functionId, body, host);
+    $.meetResult = await request(functionId, body);
 }
 
 // 逛商品API
@@ -239,17 +278,15 @@ async function shopForFactory(i) {
     const functionId = 'jdfactory_collectScore';
     const taskToken = $.homeData.data.result.taskVos[4].productInfoVos[i].taskToken;
     const body = `'taskToken':'${taskToken}'`;
-    const host = `api.m.jd.com`;
-    $.shopResult = await request(functionId, body, host);
+    $.shopResult = await request(functionId, body);
 }
 
 //关注店铺api
 async function followShop(i) {
     const functionId = 'followShop';
     const shopId = $.homeData.data.result.taskVos[5].followShopVo[i].shopId;
-    const host = `api.m.jd.com`;
     const body = `"follow":"true",'shopId':'${shopId}',"award":"false","sourceRpc":"shop_app_home_follow"`;
-    $.followShop = await request(functionId, body, host);
+    $.followShop = await request(functionId, body);
     await finishfollow(i);
 }
 
@@ -257,13 +294,12 @@ async function finishfollow() {
     const functionId = 'jdfactory_collectScore';
     const taskToken = $.homeData.data.result.taskVos[5].followShopVo[i].taskToken;
     const body = `'taskToken':'${taskToken}'`;
-    const host = `api.m.jd.com`;
-    $.finishfollow = await request(functionId, body, host);
+    $.finishfollow = await request(functionId, body);
 }
 
 // 充电
 async function addEnergy() {
-    if ($.factoryInfo.data.result.factoryInfo.totalScore === $.homeData.data.result.userScore) {
+    if (autoAdd && parseInt($.factoryInfo.data.result.factoryInfo.totalScore) <= parseInt($.homeData.data.result.userScore)) {
         return new Promise(resolve => {
             $.get(taskUrl('jdfactory_addEnergy'), async(err, resp, data) => {
                 try {
@@ -339,7 +375,7 @@ async function DailyElectricity() {
             const taskToken = $.homeData.data.result.taskVos[7].threeMealInfoVos.taskToken;
             const body = `'taskToken':'${taskToken}'`;
             const host = `api.m.jd.com`;
-            $.DailyElectricityResult = await request(functionId, body, host);
+            $.DailyElectricityResult = await request(functionId, body);
             if ($.DailyElectricityResult.data.bizCode === 0) {
                 console.log($.DailyElectricityResult.data.bizMsg);
             } else {
@@ -349,9 +385,9 @@ async function DailyElectricity() {
     }
 }
 
-function request(functionId, body, host, ContentType) {
+function request(functionId, body) {
     return new Promise(resolve => {
-        $.post(taskPostUrl(functionId, body, host, ContentType), (err, resp, data) => {
+        $.post(taskPostUrl(functionId, body), (err, resp, data) => {
             try {
                 if (err) {
                     console.log('\n京东工厂: API查询请求失败 ‼️‼️')
@@ -381,12 +417,12 @@ function taskUrl(function_id, body = {}) {
             'Accept-Encoding': `gzip, deflate, br`,
             'Accept-Language': `zh-cn`,
             'Content-Type': `application/x-www-form-urlencoded`,
-            'User-Agent': `jdapp;iPhone;9.2.0;14.1;`
+            'User-Agent': $.isNode() ? (process.env.JD_USER_AGENT ? process.env.JD_USER_AGENT : "jdapp;iPhone;9.2.2;14.2;") : ($.getdata('JDUA') ? $.getdata('JDUA') : "jdapp;iPhone;9.2.2;14.2;")
         }
     }
 }
 
-function taskPostUrl(functionId, body, host, ContentType) {
+function taskPostUrl(functionId, body) {
     return {
         url: `${JD_API_HOST}?functionId=${functionId}`,
         headers: {
@@ -394,18 +430,18 @@ function taskPostUrl(functionId, body, host, ContentType) {
             'Cookie': cookie,
             'Connection': `keep-alive`,
             'Referer': `https://h5.m.jd.com/babelDiy/Zeus/2uSsV2wHEkySvompfjB43nuKkcHp/index.html`,
-            'Host': host,
+            'Host': 'api.m.jd.com',
             'Accept-Encoding': `gzip, deflate, br`,
             'Accept-Language': `zh-cn`,
-            'Content-Type': ContentType,
-            'User-Agent': `jdapp;iPhone;9.2.0;14.1;`
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'User-Agent': $.isNode() ? (process.env.JD_USER_AGENT ? process.env.JD_USER_AGENT : "jdapp;iPhone;9.2.2;14.2;") : ($.getdata('JDUA') ? $.getdata('JDUA') : "jdapp;iPhone;9.2.2;14.2;")
         },
         body: `functionId=${functionId}&body={${body}}&client=wh5&clientVersion=1.0.0`
     }
 }
 
 function sleep(s) {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
         setTimeout(() => {
             resolve();
         }, s);
