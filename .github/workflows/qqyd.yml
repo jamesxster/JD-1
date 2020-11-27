@@ -8,7 +8,7 @@ on:
   schedule:
     - cron: '0 */11 * * *'
   watch:
-    types: [qqyd]
+    types: [started]
 
 jobs:
   build:
