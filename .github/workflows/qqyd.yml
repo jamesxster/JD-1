@@ -8,7 +8,7 @@ on:
   schedule:
     - cron: '0 */11 * * *'
   watch:
-    types: [qeds.js]
+    types: [started]
 
 jobs:
   build:
@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event.repository.owner.id == github.event.sender.id
     env:
-        SEND_KEY: ${{ secrets. SEND_KEY }}
+        COOKIE_QQYD: ${{ secrets.COOKIE_QQYD }}
     steps:
       - uses: actions/checkout@v1
       - name: Use Node.js 10.x
@@ -29,7 +29,7 @@ jobs:
           npm install got #tough-cookie
       - name: ' 运行 【企鹅阅读】'
         run: |
-          node qeds.js
+          node Scripts/qqyd.js
         env:
           PUSH_KEY: ${{ secrets.PUSH_KEY }}
           BARK_PUSH: ${{ secrets.BARK_PUSH }}
@@ -37,4 +37,4 @@ jobs:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_USER_ID: ${{ secrets.TG_USER_ID }}
           DD_BOT_TOKEN: ${{ secrets.DD_BOT_TOKEN }}
-          DD_BOT_SECRET: ${{ secrets.DD_BOT_SECRET }} 
+          DD_BOT_SECRET: ${{ secrets.DD_BOT_SECRET }}
