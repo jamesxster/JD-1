@@ -6,7 +6,7 @@ name: 京东小窝
 on:
   workflow_dispatch:
   schedule:
-    - cron: '20 0 * * *'
+    - cron: '20 0,10 * * *'
   watch:
     types: started
   repository_dispatch:
