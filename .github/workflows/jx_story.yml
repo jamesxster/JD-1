@@ -1,8 +1,7 @@
-
 # This workflow will do a clean install of node dependencies, build the source code and run tests across different versions of node
 # For more information see: https://help.github.com/actions/language-and-framework-guides/using-nodejs-with-github-actions
 
-name: 惊喜金牌厂长
+name: 惊喜金牌厂
 
 on:
   workflow_dispatch:
@@ -11,7 +10,7 @@ on:
   watch:
     types: started
   repository_dispatch:
-    types: story
+    types: jd_jxstory
 jobs:
   build:
 
@@ -19,9 +18,8 @@ jobs:
     if: github.event.repository.owner.id == github.event.sender.id
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
-        with:
-          repository: CathayGk/JD
+        run: |
+          git clone https://gitee.com/lxk0301/jd_scripts.git ~/jd_scripts
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v1
         with:
@@ -35,14 +33,23 @@ jobs:
           key: ${{ runner.os }}-${{ env.cache-name }}-${{ hashFiles('package-lock.json') }} # 使用 package-lock.json 的 Hash 作为缓存的 key。也可以使用 package.json 代替
       - name: npm install
         run: |
+          cd ~/jd_scripts
           npm install
-      - name: '运行 【惊喜金牌厂长】'
+      - name: '运行 【惊喜金牌厂】'
         run: |
-          node jx_story
+          cd ~/jd_scripts
+          node jd_jxstory.js
         env:
           JD_COOKIE: ${{ secrets.JD_COOKIE }}
           JD_DEBUG: ${{ secrets.JD_DEBUG }}
+          PUSH_KEY: ${{ secrets.PUSH_KEY }}
           BARK_PUSH: ${{ secrets.BARK_PUSH }}
+          FRUITSHARECODES: ${{ secrets.FRUITSHARECODES }}
+          FRUIT_BEAN_CARD: ${{ secrets.FRUIT_BEAN_CARD }}
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_USER_ID: ${{ secrets.TG_USER_ID }}
+          FRUIT_NOTIFY_CONTROL: ${{ secrets.FRUIT_NOTIFY_CONTROL }}
           BARK_SOUND: ${{ secrets.BARK_SOUND }}
+          DD_BOT_TOKEN: ${{ secrets.DD_BOT_TOKEN }}
+          DD_BOT_SECRET: ${{ secrets.DD_BOT_SECRET }}
+          IGOT_PUSH_KEY: ${{ secrets.IGOT_PUSH_KEY }}
