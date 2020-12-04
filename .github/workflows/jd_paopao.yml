@@ -6,7 +6,7 @@ name: 泡泡大战
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 9 * * *'
+    - cron: '0 9,10,13 * * *'
   watch:
     types: started
   repository_dispatch:
