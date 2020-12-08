@@ -19,7 +19,7 @@ jobs:
     steps:
       - name: Checkout
         run: |
-          git clone https://github.com/whyour/hundun.git ~/hundun
+          git clone -b ym  https://github.com/CathayGk/JD.git ~/CathayGk/JD
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v1
         with:
@@ -33,11 +33,11 @@ jobs:
           key: ${{ runner.os }}-${{ env.cache-name }}-${{ hashFiles('package-lock.json') }} # 使用 package-lock.json 的 Hash 作为缓存的 key。也可以使用 package.json 代替
       - name: npm install
         run: |
-          cd ~/hundun/quanx/
+          cd ~/CathayGk/JD
           npm install
       - name: '运行 【惊喜农场】'
         run: |
-          cd ~/hundun/quanx/
+          cd ~/CathayGk/JD
           node jx_nc.js
         env:
           JD_COOKIE: ${{ secrets.JD_COOKIE }}
