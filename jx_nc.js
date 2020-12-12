@@ -3,24 +3,33 @@
  * @Github: https://github.com/whyour
  * @Date: 2020-12-06 11:11:11
  * @LastEditors: whyour
- * @LastEditTime: 2020-12-09 12:43:21
-  只能选择非京喜app专属种子
+ * @LastEditTime: 2020-12-12 13:44:14
+ * 打开京喜农场，手动完成工厂任务或者签到任务，或者金牌厂长任务，提示获取cookie成功，然后退出跑任务脚本
+
+  hostname = wq.jd.com
+
   quanx:
   [task_local]
-  10 9,18 * * * https://raw.githubusercontent.com/whyour/hundun/master/quanx/jx_nc.js, img-url=https://raw.githubusercontent.com/58xinian/icon/master/jxnc.png, enabled=true
+  0 9,12,18 * * * https://raw.githubusercontent.com/whyour/hundun/master/quanx/jx_nc.js, tag=京喜农场, img-url=https://raw.githubusercontent.com/58xinian/icon/master/jxnc.png, enabled=true
+  [rewrite_local]
+  ^https\:\/\/wq\.jd\.com\/cubeactive\/farm\/dotask url script-request-header https://raw.githubusercontent.com/whyour/hundun/master/quanx/jx_nc.cookie.js
 
-  Loon:
+  loon:
   [Script]
-  cron "10 9,18 * * *" script-path=https://raw.githubusercontent.com/whyour/hundun/master/quanx/jx_nc.js,tag=京喜农场
+  http-request ^https\:\/\/wq\.jd\.com\/cubeactive\/farm\/dotask script-path=https://raw.githubusercontent.com/whyour/hundun/master/quanx/jx_nc.cookie.js, requires-body=false, timeout=10, tag=京喜农场cookie
+  cron "0 9,12,18 * * *" script-path=https://raw.githubusercontent.com/whyour/hundun/master/quanx/jx_nc.js, tag=京喜农场
 
-  Surge:
-  京喜农场 = type=cron,cronexp="10 9,18 * * *",wake-system=1,timeout=20,script-path=https://raw.githubusercontent.com/whyour/hundun/master/quanx/jx_nc.js
-*
-**/
+  surge:
+  [Script]
+  京喜农场 = type=cron,cronexp=0 9,12,18 * * *,timeout=60,script-path=https://raw.githubusercontent.com/whyour/hundun/master/quanx/jx_nc.js,
+  京喜农场cookie = type=http-request,pattern=^https\:\/\/wq\.jd\.com\/cubeactive\/farm\/dotask,requires-body=0,max-size=0,script-path=https://raw.githubusercontent.com/whyour/hundun/master/quanx/jx_nc.cookie.js
+ *
+ **/
 
 const $ = new Env('京喜农场');
 const JD_API_HOST = 'https://wq.jd.com/';
 const jdCookieNode = $.isNode() ? require('./jdCookie.js') : '';
+$.tokens = [$.getdata('jxnc_token1') || '{}', $.getdata('jxnc_token2') || '{}'];
 $.showLog = $.getdata('nc_showLog') ? $.getdata('nc_showLog') === 'true' : false;
 $.openUrl = `openjd://virtual?params=${encodeURIComponent(
   '{ "category": "jump", "des": "m", "url": "https://wqsh.jd.com/sns/201912/12/jxnc/detail.html?ptag=7155.9.32&smp=b47f4790d7b2a024e75279f55f6249b9&active=jdnc_1_chelizi1205_2"}',
@@ -28,6 +37,7 @@ $.openUrl = `openjd://virtual?params=${encodeURIComponent(
 $.result = [];
 $.cookieArr = [];
 $.currentCookie = '';
+$.currentToken = {};
 $.allTask = [];
 $.info = {};
 $.answer = 0;
@@ -36,16 +46,17 @@ $.answer = 0;
   if (!getCookies()) return;
   for (let i = 0; i < $.cookieArr.length; i++) {
     $.currentCookie = $.cookieArr[i];
+    $.currentToken = JSON.parse($.tokens[i]);
     if ($.currentCookie) {
       const userName = decodeURIComponent(
         $.currentCookie.match(/pt_pin=(.+?);/) && $.currentCookie.match(/pt_pin=(.+?);/)[1],
       );
       $.log(`\n开始【京东账号${i + 1}】${userName}`);
       const isSuccess = await getTaskList();
-      if (!isSuccess) return;
+      if (!isSuccess) break;
       await $.wait(500);
       const isOk = await browserTask();
-      if (!isOk) return;
+      if (!isOk) break;
       await $.wait(500);
       await answerTask();
       await $.wait(500);
@@ -80,11 +91,11 @@ function getTaskList() {
       try {
         const res = data.match(/try\{whyour\(([\s\S]*)\)\;\}catch\(e\)\{\}/)[1];
         const { detail, msg, task = [], retmsg, ...other } = JSON.parse(res);
-        $.allTask = task.filter(x => x.tasktype !== 3 && x.tasktype !== 2 && x.tasktype !== 14);
+        $.allTask = task.filter(x => x.tasktype !== 3 && x.tasktype !== 2 && parseInt(x.left) > 0);
         $.info = other;
         $.log(`\n获取任务列表 ${retmsg} 总共${$.allTask.length}个任务！`);
         if (!$.info.active) {
-          $.msg($.name, '请先去京喜农场选择种子！', '必须选择非app专属种子，点击通知跳转', { 'open-url': $.openUrl });
+          $.msg($.name, '请先去京喜农场选择种子！', '选择app专属种子时，请参考脚本头部说明获取token，点击通知跳转', { 'open-url': $.openUrl });
           resolve(false);
         }
       } catch (e) {
@@ -96,7 +107,7 @@ function getTaskList() {
   });
 }
 
-function browserTask() {
+function  browserTask() {
   return new Promise(async resolve => {
     const times = Math.max(...[...$.allTask].map(x => x.limit));
     for (let i = 0; i < $.allTask.length; i++) {
@@ -104,7 +115,8 @@ function browserTask() {
       $.log(`\n开始第${i + 1}个任务：${task.taskname}`);
       const status = [0];
       for (let i = 0; i < times; i++) {
-        await $.wait(500);
+        const random = Math.random() * 3;
+        await $.wait(random * 1000);
         if (status[0] === 0) {
           status[0] = await doTask(task);
         }
@@ -113,7 +125,7 @@ function browserTask() {
         }
       }
       if (status[0] === 1032) {
-        $.msg($.name, '请选择非京喜app专属种子！', '必须选择非app专属种子，点击通知跳转', { 'open-url': $.openUrl });
+        $.msg($.name, '请参考脚本头部说明获取token', '或者改中非app专属种子，点击通知跳转', { 'open-url': $.openUrl });
         resolve(false);
         return;
       }
@@ -124,7 +136,9 @@ function browserTask() {
 }
 
 function answerTask() {
-  const { tasklevel, left, taskname } = $.allTask.filter(x => x.tasklevel === 6)[0];
+  const _answerTask = $.allTask.filter(x => x.tasklevel === 6);
+  if (!_answerTask || !_answerTask[0]) return;
+  const { tasklevel, left, taskname } = _answerTask[0];
   return new Promise(async resolve => {
     if (parseInt(left) <= 0) {
       resolve(false);
@@ -148,8 +162,9 @@ function answerTask() {
               $.showLog ? '\n' + res : ''
             }`,
           );
-          if (ret !== 0 && $.answer < 4) {
+          if ((ret !== 0 || retmsg === 'ans err') && $.answer < 4) {
             $.answer++;
+            await $.wait(1000);
             await answerTask();
           }
         } catch (e) {
@@ -201,15 +216,16 @@ function submitInviteId(userName) {
       resolve();
       return;
     }
-    $.log('你的互助码: ' + $.info.smp);
+    $.log(`\n你的互助码: ${$.info.smp}`);
+    $.log(`你的活动id: ${$.info.active}`);
     $.post(
       {
-        url: `https://api.ninesix.cc/api/jx-nc/${$.info.smp}/${encodeURIComponent(userName)}`,
+        url: `https://api.ninesix.cc/api/jx-nc/${$.info.smp}/${encodeURIComponent(userName)}?active=${$.info.active}`,
       },
       (err, resp, _data) => {
         try {
-          const { data = {} } = JSON.parse(_data);
-          $.log(`\n邀请码提交：${data.value}\n${$.showLog ? _data : ''}`);
+          const { code, data = {} } = JSON.parse(_data);
+          $.log(`\n邀请码提交：${code}\n${$.showLog ? _data : ''}`);
           if (data.value) {
             $.result.push('邀请码提交成功！');
           }
@@ -225,17 +241,25 @@ function submitInviteId(userName) {
 
 function createAssistUser() {
   return new Promise(resolve => {
-    $.get({ url: 'https://api.ninesix.cc/api/jx-nc' }, (err, resp, _data) => {
+    $.get({ url: `https://api.ninesix.cc/api/jx-nc?active=${$.info.active}` }, async (err, resp, _data) => {
       try {
-        const { data = {} } = JSON.parse(_data);
-        $.log(`\n${data.value}\n${$.showLog ? _data : ''}`);
+        const { code, data = {} } = JSON.parse(_data);
+        $.log(`\n获取随机助力码${code}\n${$.showLog ? _data : ''}`);
+        if (!data.value) {
+          $.result.push('助力失败或者同活动助力码不存在，请再次手动执行脚本！');
+          resolve();
+          return;
+        }
         $.get(
           taskUrl('help', `active=${$.info.active}&joinnum=${$.info.joinnum}&smp=${data.value}`),
-          (err, resp, data) => {
+          async (err, resp, data) => {
             try {
               const res = data.match(/try\{whyour\(([\s\S]*)\)\;\}catch\(e\)\{\}/)[1];
               const { ret, retmsg = '' } = JSON.parse(res);
               $.log(`\n助力：${retmsg} \n${$.showLog ? res : ''}`);
+              if (ret !== 1016 || retmsg !== 'today help max') {
+                await createAssistUser();
+              }
             } catch (e) {
               $.logErr(e, resp);
             } finally {
@@ -259,14 +283,18 @@ function showMsg() {
 
 function taskUrl(function_path, body) {
   return {
-    url: `${JD_API_HOST}cubeactive/farm/${function_path}?${body}&sceneval=2&g_login_type=1&callback=whyour&timestamp=${Date.now()}&_=${Date.now()}&g_ty=ls`,
+    url: `${JD_API_HOST}cubeactive/farm/${function_path}?${body}&farm_jstoken=${
+      $.currentToken['farm_jstoken']
+    }&phoneid=${$.currentToken['phoneid']}&timestamp=${
+      $.currentToken['timestamp']
+    }&sceneval=2&g_login_type=1&callback=whyour&_=${Date.now()}&g_ty=ls`,
     headers: {
       Cookie: $.currentCookie,
       Accept: `*/*`,
       Connection: `keep-alive`,
       Referer: `https://st.jingxi.com/pingou/dream_factory/index.html`,
       'Accept-Encoding': `gzip, deflate, br`,
-      Host: `m.jingxi.com`,
+      Host: `wq.jd.com`,
       'Accept-Language': `zh-cn`,
     },
   };
