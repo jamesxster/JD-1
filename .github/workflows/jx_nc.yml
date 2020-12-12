@@ -19,7 +19,7 @@ jobs:
     steps:
       - name: Checkout
         run: |
-           git clone https://github.com/whyour/hundun/tree/master/quanx.git ~/quanx
+           git clone https://github.com/whyour.git ~/whyour
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v1
         with:
@@ -34,7 +34,6 @@ jobs:
       - name: '运行 【惊喜农场】'
         run: |
           cd  ~/quanx
-          npm install
           node jx_nc.js
         env:
           JD_COOKIE: ${{ secrets.JD_COOKIE }}
